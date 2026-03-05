@@ -1,0 +1,49 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+.python-version
+
+# Virtual Environment
+venv/
+env/
+myenv/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# Jupyter Notebook
+.ipynb_checkpoints/
+*.ipynb
+!Bakkhaliweather2.ipynb  # Keep your original notebook
+
+# Model files 
+models/*.pkl
+!models/README.md
+
+# Environment variables
+.env
+*.env
+
+# Docker
+*.log
+Dockerfile*
+docker-compose.yml
+!Dockerfile.backend
+!Dockerfile.frontend
+!docker-compose.yml
+
+# OS
+.DS_Store
+Thumbs.db
