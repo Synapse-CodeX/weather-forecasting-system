@@ -6,7 +6,6 @@ import os
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# Load models
 MODEL_PATH = os.path.join(BASE_DIR, 'models', 'xgb_weather_model.pkl')
 FEATURES_PATH = os.path.join(BASE_DIR, 'models', 'feature_names.pkl')
 TARGETS_PATH = os.path.join(BASE_DIR, 'models', 'target_names.pkl')
