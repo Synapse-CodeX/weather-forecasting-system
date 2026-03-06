@@ -49,13 +49,13 @@ def engineer_features_exactly_like_notebook(df):
     
     for col in df.columns:
         if df[col].dtype in [np.float64, np.int64]:
-            # Replace -999 with NaN
+            
             df[col] = df[col].replace(-999, np.nan)
-            # Fill with median of that hour
+            
             df[col] = df.groupby(df.index.hour)[col].transform(
                 lambda x: x.fillna(x.median())
             )
-            # Final forward/backward fill
+            
             df[col] = df[col].ffill().bfill()
     
     df.reset_index(inplace=True)
