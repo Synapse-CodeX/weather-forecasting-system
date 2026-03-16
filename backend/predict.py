@@ -6,7 +6,7 @@ import os
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# Load models
+
 MODEL_PATH = os.path.join(BASE_DIR, 'models', 'xgb_weather_model.pkl')
 FEATURES_PATH = os.path.join(BASE_DIR, 'models', 'feature_names.pkl')
 TARGETS_PATH = os.path.join(BASE_DIR, 'models', 'target_names.pkl')
@@ -15,7 +15,7 @@ model = joblib.load(MODEL_PATH)
 feature_names = joblib.load(FEATURES_PATH)
 target_names = joblib.load(TARGETS_PATH)
 
-# ── Constants ─────────────────────────────────────────────────────────────────
+
 
 WEATHER_COLS = [
     "Temperature (°C)",
@@ -27,8 +27,7 @@ WEATHER_COLS = [
     "Wind Speed (m/s)"
 ]
 
-# Long lag columns that drift badly in autoregressive mode —
-# these will be anchored to real historical values (Fix 2)
+
 LONG_LAG_COLS = [
     "Radiation (W/m²)_lag96",
     "Radiation (W/m²)_lag120",
@@ -40,15 +39,14 @@ LONG_LAG_COLS = [
     "Wind Speed (m/s)_lag120",
 ]
 
-# Clear-sky peak radiation (W/m²) for Bakkhali (~21.5N) by month.
-# Lower in monsoon months (Jun-Sep) due to heavy cloud cover.
+
 MONTHLY_PEAK_RADIATION = {
     1: 580, 2: 640, 3: 700, 4: 750, 5: 780, 6: 760,
     7: 630, 8: 620, 9: 670, 10: 660, 11: 600, 12: 555
 }
 
 
-# ── Utilities ─────────────────────────────────────────────────────────────────
+
 
 def convert_numpy(obj):
     """Recursively convert numpy types to plain Python types for JSON serialisation."""
@@ -66,7 +64,7 @@ def convert_numpy(obj):
         return obj
 
 
-# ── Fix 3: theoretical radiation helpers ─────────────────────────────────────
+
 
 def theoretical_radiation(hour: int, month: int) -> float:
     """
@@ -195,7 +193,7 @@ def _predict_hours(historical_df, hours: int):
     print(f"Engineering features for {hours}h prediction...")
     Z = engineer_features_exactly_like_notebook(historical_df)
 
-    # Fix 2: snapshot real long-lag values BEFORE any predictions are appended.
+    
     real_long_lag_values = {}
     for lag_col in LONG_LAG_COLS:
         if lag_col in Z.columns:
@@ -216,7 +214,7 @@ def _predict_hours(historical_df, hours: int):
 
     for target_dt in target_datetimes:
 
-        # Build extended dataframe with a blank placeholder for this hour
+        
         new_rows = pd.DataFrame({"datetime": [target_dt]})
         for col in Z.columns:
             if col not in new_rows.columns and col != 'datetime':
@@ -228,7 +226,7 @@ def _predict_hours(historical_df, hours: int):
 
         mask_new = extended_df["datetime"].isin([target_dt])
 
-        # Fill placeholder using hourly climatology from the last 10 days of Z
+    
         last_10_days = Z[Z["datetime"] >= (last_datetime - timedelta(days=10))]
         for col in Z.columns:
             if col != 'datetime' and col in extended_df.columns:
@@ -240,7 +238,7 @@ def _predict_hours(historical_df, hours: int):
                         extended_df.loc[mask_new, "hour"].map(hourly_means)
                     )
 
-        # Recompute all time features on the extended dataframe
+   
         extended_df["hour"] = extended_df["datetime"].dt.hour
         extended_df["month"] = extended_df["datetime"].dt.month
         extended_df["year"] = extended_df["datetime"].dt.year
@@ -249,7 +247,7 @@ def _predict_hours(historical_df, hours: int):
         extended_df["month_sin"] = np.sin(2 * np.pi * extended_df["month"] / 12)
         extended_df["month_cos"] = np.cos(2 * np.pi * extended_df["month"] / 12)
 
-        # Prepare model input from the last (newest) row
+     
         final_input = extended_df.tail(1).drop(columns=['datetime'], errors='ignore').copy()
 
         for feat in feature_names:
@@ -258,12 +256,12 @@ def _predict_hours(historical_df, hours: int):
 
         final_input = final_input[feature_names].copy()
 
-        # Fix 2: override long-lag columns with real historical anchor values
+    
         for lag_col, real_val in real_long_lag_values.items():
             if lag_col in final_input.columns:
                 final_input[lag_col] = real_val
 
-        # Run the model
+      
         prediction = model.predict(final_input)[0]
 
         result = {}
@@ -273,12 +271,12 @@ def _predict_hours(historical_df, hours: int):
                 value = float(value)
             result[name] = round(value, 2)
 
-        # ── Physical constraints ──────────────────────────────────────────────
+      
         hour = target_dt.hour
         month = target_dt.month
         day_offset = max(1, (target_dt.date() - today).days + 1)
 
-        # Fix 3: blend model radiation with theoretical clear-sky curve
+    
         result["Radiation (W/m²)"] = blend_radiation(
             predicted=result.get("Radiation (W/m²)", 0.0),
             hour=hour,
@@ -286,13 +284,13 @@ def _predict_hours(historical_df, hours: int):
             day_offset=day_offset
         )
 
-        # Hard physical clamps for remaining variables
+     
         result["Humidity (%)"] = max(0.0, min(100.0, result.get("Humidity (%)", 0)))
         result["Cloud Coverage (%)"] = max(0.0, min(100.0, result.get("Cloud Coverage (%)", 0)))
         result["Precipitation (mm/hr)"] = max(0.0, result.get("Precipitation (mm/hr)", 0))
         result["Wind Speed (m/s)"] = max(0.0, result.get("Wind Speed (m/s)", 0))
 
-        # Metadata fields
+  
         result['datetime'] = target_dt.strftime('%Y-%m-%d %H:00')
         result['hour'] = hour
         result['date'] = target_dt.strftime('%Y-%m-%d')
@@ -301,10 +299,7 @@ def _predict_hours(historical_df, hours: int):
 
         predictions.append(result)
 
-        # Feed this prediction back into Z so lag1/lag2/lag3/lag24 are correct
-        # for the next iteration. Explicitly write weather column values so
-        # the named columns (e.g. "Temperature (°C)") are populated, not just
-        # the metadata fields.
+       
         new_row = result.copy()
         new_row['datetime'] = target_dt
         for col in WEATHER_COLS:
@@ -315,7 +310,6 @@ def _predict_hours(historical_df, hours: int):
     return convert_numpy(predictions)
 
 
-# ── Helpers ───────────────────────────────────────────────────────────────────
 
 def _day_label(dt: datetime) -> str:
     """Human-readable label: Today / Tomorrow / Day After Tomorrow / weekday date."""
@@ -377,14 +371,13 @@ def _daily_summary(hourly_predictions: list) -> dict:
                 "avg": round(sum(values) / len(values), 2)
             }
 
-    # Precipitation is a sum across the day, not an average
+ 
     precip = [p.get("Precipitation (mm/hr)", 0) for p in hourly_predictions]
     summary["Total Precipitation (mm)"] = round(sum(precip), 2)
 
     return summary
 
 
-# ── Public API ────────────────────────────────────────────────────────────────
 
 def predict_next_24h(historical_df):
     """Predict next 24 hours. Returns flat list of hourly dicts."""
